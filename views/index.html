@@ -1,0 +1,229 @@
+@{title(CONF.name)}
+@{layout('')}
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<meta http-equiv="X-UA-Compatible" content="IE=10" />
+		<meta name="robots" content="all,follow" />
+		@{import('spa.min@19.css', 'spa.min@19.js')}
+		<script src="@{REPO.ui}"></script>
+		@{import('meta', 'head', 'default.css + editor.min@1.css + editor.css', 'filesaver.min.js + editor.min@1.js + uibuilder.min@1.js + editor.js + func.js', 'favicon.ico')}
+	</head>
+	<body>
+		<ui-component name="exec"></ui-component>
+		<ui-component name="LAZY menu" config="style:2"></ui-component>
+		<ui-component name="LAZY colorpicker"></ui-component>
+		<ui-component name="LAZY icons" config="list:@{#}/icons-db.html"></ui-component>
+		<header>
+			<span class="mainmenu exec" data-exec="common/focus" data-id="main">
+				<img src="/img/codeit-logo.png" class="img-responsive" alt="" />
+			</span>
+			<div class="pull-right">
+				<ui-component name="virtualwire" path="common.page" class="toolbar"></ui-component>
+			</div>
+		</header>
+		<div class="appmenu">
+			<ui-component name="noscrollbar" config="parent:window;margin:60" class="invisible">
+				<ui-component name="selected" path="common.page" config="selector:.exec;attr:id">
+					<ui-bind path="common.menu" config="template" class="block">
+						<script type="text/html">
+							{{ foreach m in value }}
+								{{ if m === '-' }}
+								<hr />
+								{{ else if m.hidden !== true }}
+								<div class="exec" data-exec="common/menu" title="{{ m.name }}" data-id="{{ m.id }}"><i class="{{ m.icon }}"></i></div>
+								{{ fi }}
+							{{ end }}
+						</script>
+					</ui-bind>
+				</ui-component>
+			</ui-component>
+		</div>
+		<div class="appmain">
+			<div class="landing">
+				<div>
+					<ui-component name="breadcrumb" path="common.breadcrumb" />
+				</div>
+				<ui-component name="parts" path="common.tabs" config="parent:window;margin:60"></ui-component>
+			</div>
+			<ui-component name="ready" config="rclass:invisible" class="invisible">
+				<ui-component name="importer" path="common.form" config="if:companyform;url:@{#}/forms/company.html"></ui-component>
+			</ui-component>
+	
+		</div>
+
+
+	@{json(model, 'pluginsdata')}
+	@{json(user.json ? user.json() : user, 'userdata')}
+
+	<script>
+		var common = {};
+		common.page = 'company';
+		common.breadcrumb = [{ name: 'Company', url: '/', historyapi:0 }];
+		var user = PARSE('#userdata');
+		common.openplatform = NAV.query.openplatform || '';
+		common.tabs = [{ id: 'main', name: '@(Flows)', icon: 'ti ti-home', noclose: true, import: '@{#}/parts/companies.html' }];
+		(function() {
+			DEF.api = '@{#}@{CONF.$api}' + common.openplatform;
+		})();
+		PLUGIN('common', function(exports) {
+			var model = exports.model;
+			var checksum;
+			exports.focus = function(el) {
+				var id = ATTRD(el);
+				console.log("focus")
+			};
+			exports.mainmenu = function() {
+				var items = [];
+
+				if (user.sa || user.permissions.includes('create')) {
+					items.push({ id: 'create', name: '@(Create new)', icon: 'ti ti-plus-circle green' });
+					items.push({ id: 'import', name: '@(Import FlowStream)', icon: 'ti ti-download', hidden: true });
+				}
+
+				items.push({ id: 'search', name: '@(Search)', icon: 'ti ti-search' });
+
+				if (user.sa) {
+					items.push({ id: 'templates', name: '@(Templates)', icon: 'ti ti-cloud-download', hidden: true });
+					items.push({ id: 'variables', name: '@(Variables)', icon: 'ti ti-variables', classname: 'b', hidden: true });
+				}
+
+				if (items.length)
+					items.push('-');
+
+				if (!model.openplatform && !user.openplatform)
+					items.push({ id: 'password', name: '@(Change credentials)', icon: 'ti ti-key' });
+
+				if (user.sa) {
+					items.push({ id: 'settings', name: '@(Settings)', icon: 'ti ti-cog' });
+					if (model.bundle)
+						items.push({ id: 'update', name: '@(Update bundle)', icon: 'ti ti-sync', hidden: true });
+				}
+
+				if (items.last() === '-')
+					items.pop();
+
+				exports.set('menu', items);
+			};
+			exports.menu = function(el) {
+				var id = ATTRD(el);
+				switch (id) {
+
+					case 'flows':
+						exports.set('page', 'flows');
+						break;
+
+					case 'update':
+						EXEC('-approve/show', '<i class="ti ti-warning red"></i><b>@(WARNING):</b> @(Are you sure you want to update bundle of the Total.js Flow? It is a hazardous step.)', '"ti ti-sync" @(Upload bundle)', function() {
+							var opt = {};
+							opt.multiple = false;
+							opt.url = '/fapi/update/' + model.openplatform;
+							opt.callback = function(response, err) {
+								if (err) {
+									EXEC('-message/warning', err);
+								} else {
+									EXEC('-loading/show');
+									setTimeout(() => location.reload(), 5000);
+								}
+							};
+							EXEC('-fileuploader/upload', opt);
+						});
+						break;
+
+					case 'logout':
+						AJAX('GET @{#}/fapi/logout/ @showloading', () => location.href = '/');
+						break;
+
+					case 'import':
+						FUNC.import(function(data, hide) {
+							data = data.trim();
+							var obj = PARSE(data);
+							if (obj && obj.components && obj.id && obj.name && obj.design) {
+								data = STRINGIFY(obj);
+								exports.tapi('clipboard_import @showloading ERROR', { data: data }, function(response) {
+									exports.refresh();
+									setTimeout(function() {
+										exports.tapi('streams_read/{0} ERROR'.format(response.value), function(response) {
+											SET('streamform @reset @hideloading', response);
+											SET('common.form', 'streamform');
+										});
+									}, 1000);
+								});
+								hide();
+							} else
+								EXEC('-message/warning', '@(Invalid data)');
+						});
+						break;
+					case 'opensource':
+						exports.set('form', 'templatesform');
+						break;
+					case 'create':
+					case 'settings':
+					case 'password':
+					case 'variables':
+						exports[id]();
+						break;
+					case 'cdnclear':
+						EXEC('-approve/show', '@(Are you sure you want to clear the CDN cache for UI components?)', ':ti ti-recycle: @(Clear)', () => exports.tapi('cdn_clear ERROR', AEXEC('-message/success', '@(The CDN cache has been cleared successfully)')));
+						break;
+					case 'templates':
+						SET('common.form', 'templatesform');
+						break;
+					case 'search':
+						exports.search();
+						break;
+					default:
+
+						if (id.substring(0, 6) === 'plugin') {
+							EXEC('-parts/focus', 'main');
+							exports.set('page', id);
+						}
+
+						break;
+				}
+			};
+			exports.create = function() {
+				SET('companyform @default', {});
+				SET('common.form', 'companyform');
+			};
+			exports.refresh = function() {
+				exports.tapi('companies ERROR', function(response) {
+					exports.set('items', response.items);
+				});
+			};
+			exports.contextmenu = function(el, e) {
+				var id = el.attrd2('id');
+				var opt = {};
+				if (el.hclass('exec3')) {
+					opt.x = e.pageX;
+					opt.y = e.pageY;
+				} else {
+					opt.element = el;
+					opt.align = 'right';
+				}
+				opt.items = [];
+				opt.items.push({ id: 'edit', name: '@(Edit)', icon: 'ti ti-pencil' });
+				if (user.sa || user.permissions.includes('create')) {
+					opt.items.push('-');
+					opt.items.push({ id: 'manage_area', name: '@(Manage Site)', icon: 'ti ti-antenna' });
+				}
+				if (user.sa || user.permissions.includes('remove')) {
+					opt.items.push('-');
+					opt.items.push({ id: 'remove', name: '@(Remove)', icon: 'ti ti-remove red' });
+				}
+				opt.callback = function(opt) {
+					window.location.href  = "/companies/" + id + "/sites";
+					return;
+				};
+				EXEC('-menu/show', opt);
+			};
+			exports.mainmenu();
+			exports.refresh();
+		})
+	</script>
+
+	</body>
+
+</html>

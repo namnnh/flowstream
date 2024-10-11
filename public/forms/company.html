@@ -1,0 +1,56 @@
+<ui-component name="box" path="common.form" config="if:~PATH~;icon:ti ti ti-address-card;autofocus:true;reload:?/reload;scrollbar:1;submit:?/submit;width:800" class="hidden" plugin="~PATH~">
+    <div class="padding bg-smoke npb">
+		<div class="grid-2">
+			<div class="m">
+				<ui-component name="input" path="?.name" config="required:1" default="''">@(Company Name)</ui-component>
+				<div class="help">@(Enter Company name)</div>
+			</div>
+			<div class="m">
+				<ui-component name="input" path="?.namespace" config="required:1" config="placeholder:@(owi_0.01)">@(Namespace)</ui-component>
+				<div class="help">@(Sys Namespace)</div>
+			</div>
+		</div>
+	</div>
+    <div class="padding npb">
+        <div class="row">
+			<div class="col-md-3 m">
+				<ui-component name="input" path="?.icon" config="required:1;type:icon" default="'ti ti-microchip'">@(Icon)</ui-component>
+			</div>
+			<div class="col-md-3 m">
+				<ui-component name="input" path="?.color" config="type:color">@(Color)</ui-component>
+			</div>
+			<div class="col-md-6">
+				<ui-component name="input" path="?.address" config="placeholder:@(444 roxbury )"><i class="ti ti-server"></i><b>@(Address)</b></ui-component>
+				<div class="help">@(Optional, Company address)</div>
+			</div>
+		</div>
+    </div>
+    <hr />
+    <div class="padding">
+		<div class="ui-input-label">@(Additional information):</div>
+		<ui-component name="codemirror" path="?.readme" config="minheight:300;parent:auto;margin:600;monospace:1;type:markdown;linenumbers:0"></ui-component>
+		<div class="help">@(Markdown format)</div>
+	</div>
+    <nav>
+		<ui-component name="validate" path="?">
+			<button name="submit" disabled><i class="ti ti-check-circle"></i>@(SUBMIT)</button>
+			<button name="cancel">@(Cancel)</button>
+		</ui-component>
+	</nav>
+</ui-component>
+<script>
+    PLUGIN(function(exports) {
+        exports.reload = function(com) {
+			var model = exports.model;
+			var id = model ? model.id : null;
+			com.reconfigure({ title: id ? '@(Update FlowStream)' : '@(Add New Company)' });
+		};
+        exports.submit = function(hide) {
+            let model = CLONE(exports.form);
+			exports.tapi('company_create ERROR', model, function() {
+				EXEC('common/refresh');
+				hide();
+			});
+        }
+    })
+</script>
