@@ -193,7 +193,7 @@ COMPONENT("websocket_offline", function (self) {
 
     switch (msg.TYPE) {
       case "deploy":
-        console.log("1111111111");
+        console.log("22222");
         break;
       case "flow":
         sendmeta();

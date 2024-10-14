@@ -1,0 +1,199 @@
+{
+	"variables": {},
+	"fIs33EW1ej61f": {
+		"id": "fIs33EW1ej61f",
+		"name": "Flow1",
+		"author": "",
+		"version": "",
+		"icon": "ti ti-microchip",
+		"reference": "",
+		"group": "",
+		"url": "https://",
+		"cloning": true,
+		"color": "",
+		"readme": "",
+		"memory": 0,
+		"proxypath": "",
+		"variables": {},
+		"dtcreated": "2024-10-14T11:07:32.131Z",
+		"asfiles": false,
+		"worker": "fork",
+		"origin": "http://localhost:8000",
+		"paused": false,
+		"components": {
+			"mqttsubscribe": "<script total>\n\n\texports.id = 'mqttsubscribe';\n\texports.name = 'MQTT Subscribe';\n\texports.icon = 'ti ti-sign-in';\n\texports.group = 'MQTT';\n\texports.config = { broker: '' };\n\texports.outputs = [{ id: 'message', name: 'Message' }];\n\texports.author = 'Martin Smola';\n\texports.version = '3';\n\texports.flags = ['mqttbroker-dep'];\n\n\texports.make = function(instance, config) {\n\n\t\tvar subscribed = false;\n\t\tvar broker, topic;\n\n\t\tinstance.configure = function() {\n\n\t\t\tif (subscribed && broker)\n\t\t\t\tbroker.unsubscribe(instance.id, topic);\n\n\t\t\ttopic = config.topic;\n\n\t\t\tbroker = instance.main.find(config.broker);\n\n\t\t\tif (broker) {\n\t\t\t\tbroker.subscribe(instance.id, topic);\n\t\t\t\tsubscribed = true;\n\t\t\t\tinstance.status({ status: broker.state.status + ' (subscribed)', topic });\n\t\t\t} else {\n\t\t\t\tinstance.status({ status: 'Broker not found', topic });\n\t\t\t}\n\t\t};\n\n\t\tinstance.onmessage = function(topic, message, match, ts) {\n\t\t\tinstance.send('message', { topic, message, match, ts });\n\t\t};\n\n\t\tinstance.close = function() {\n\t\t\tif (subscribed && broker)\n\t\t\t\tbroker.unsubscribe(instance.id, topic);\n\t\t};\n\n\t\tinstance.configure();\n\t};\n\n\texports.call = function(data, answer) {\n\t\tvar arr = [];\n\n\t\tvar instances = this.instances();\n\n\t\tinstances = instances.filter(i => i.module.flags && i.module.flags.includes('mqttbroker'));\n\t\tfor (let com of instances)\n\t\t\tarr.push({ id: com.id, name: `${com.state.name} (${com.state.status})` });\n\n\t\tanswer(arr);\n\t};\n</script>\n\n<readme>\nMQTT Subscribe\n</readme>\n\n<style>\n\t.CLASS footer { padding: 10px; font-size: 11px; }\n\t.CLASS footer > ui-bind > div { height: 16px; }\n\t.CLASS footer b { float: right; margin-left: 12px; }\n</style>\n\n<script>\n\tON('configure_mqttsubscribe', function(data) {\n\t\tdata.call(function(response) {\n\t\t\tSET('%brokers', response);\n\t\t}, true);\n\t});\n</script>\n\n<settings>\n\t<div class=\"padding\">\n\t\t<div class=\"row\">\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.broker\" config=\"dirsource:%brokers;dirraw:1;placeholder:Select broker;dirempty:No broker;required:1\" class=\"m\"><b>Broker</b></ui-component>\n\t\t\t</div>\n\t\t</div>\n\t\t<div class=\"row\">\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.topic\" config=\"placeholder:devices/status;required:1\" class=\"m\"><b>Topic</b></ui-component>\n\t\t\t</div>\n\t\t</div>\n\t\t<div class=\"row\">\n\t\t\t<div class=\"col-md-12\">\n\t\t\t\t<p>\n\t\t\t\t\t<b>The topic supports wildcards like:</b><br>\n\t\t\t\t\t- devices/+/status -> devices/1/status or devices/123456/status etc.<br>\n\t\t\t\t\t- devices/#        -> any topic begining with devices/.......\n\t\t\t\t</p>\n\t\t\t</div>\n\t\t</div>\n\t</div>\n</settings>\n\n<body>\n\t<header>\n\t\t<i class=\"ICON\"></i>NAME\n\t</header>\n\t<footer>\n\t\t<ui-bind path=\"!STATUS\" config=\"template;show\">\n\t\t\t<script type=\"text/html\">\n\t\t\t\t<div><b>{{ value.status }}</b>Status</div>\n\t\t\t\t<div><b>{{ value.topic }}</b>Topic</div>\n\t\t\t</script>\n\t\t</ui-bind>\n\t</footer>\n</body>",
+			"mqttbroker": "<script total>\n\n\texports.id = 'mqttbroker';\n\texports.name = 'MQTT Broker';\n\texports.icon = 'ti ti-exchange';\n\texports.group = 'MQTT';\n\texports.config = { host: 'localhost', port: 1883, secure: false };\n\texports.outputs = [{ id: 'output', name: 'Messages' }];\n\texports.author = 'Martin Smola';\n\texports.version = '3';\n\texports.npm = ['mqtt'];\n\texports.flags = ['mqttbroker'];\n\n\texports.make = function(instance, config) {\n\n\t\tconst mqtt = require('mqtt');\n\t\tvar client;\n\t\tconst subscribtions = {};\n\n\t\tconst state = () => {\n\t\t\tvar obj;\n\t\t\tif (!client) {\n\t\t\t\tobj = { connected: false, connecting: false, disconnected: true, disconnnecting: false, status: 'disconnected' };\n\t\t\t} else {\n\t\t\t\tconst { connected, disconnecting, reconnecting } = client;\n\t\t\t\tobj = { connecting: client.stream ? client.stream.connecting : false, connected, disconnecting, reconnecting };\n\t\t\t\tconst current = Object.keys(obj).filter(s => obj[s]);\n\t\t\t\tobj.status = current.length ? current[0] : 'disconnected';\n\t\t\t}\n\n\t\t\tinstance.state = { status: obj.status, name: config.host + ':' + config.port };\n\t\t\tinstance.status(instance.state);\n\t\t\treturn obj;\n\t\t};\n\n\t\tinstance.configure = function() {\n\t\t\tdisconnect(connect);\n\t\t};\n\n\t\tinstance.close = function() {\n\t\t\tdisconnect(notifypubsub);\n\t\t};\n\n\t\tinstance.configure();\n\n\t\tfunction disconnect(callback) {\n\t\t\tif (!client)\n\t\t\t\treturn callback && callback();\n\n\t\t\tif (client.end)\n\t\t\t\tclient.end(true, cb);\n\t\t\telse\n\t\t\t\tcb();\n\n\t\t\tfunction cb() {\n\t\t\t\tclient.removeAllListeners();\n\t\t\t\tclient = null;\n\t\t\t\tcallback && callback();\n\t\t\t};\n\t\t};\n\n\t\tfunction connect() {\n\n\t\t\tstate();\n\n\t\t\tvar broker = config.secure ? 'mqtts://' : 'mqtt://' + config.host + ':' + config.port;\n\t\t\tconfig.name = '[MQTT] ' + config.host + ':' + config.port;\n\t\t\tvar opt = CLONE(config);\n\t\t\tdelete opt.auth;\n\t\t\tclient = mqtt.connect(broker, opt);\n\n\t\t\tclient.on('connect', function() {\n\t\t\t\tstate();\n\t\t\t\tnotifypubsub();\n\t\t\t});\n\n\t\t\tclient.on('reconnect', function() {\n\t\t\t\tstate();\n\t\t\t});\n\n\t\t\tclient.on('message', function(topic, message) {\n\t\t\t\tmessage = message.toString();\n\t\t\t\tif (message[0] === '{' || message[0] === '[')\n\t\t\t\t\tmessage = message.parseJSON(true);\n\n\t\t\t\tonmessage(topic, message);\n\t\t\t});\n\n\t\t\tclient.on('close', function(err) {\n\t\t\t\tconsole.log(config.name + ' close', err);\n\t\t\t\tstate();\n\t\t\t});\n\n\t\t\tclient.on('error', function(err) {\n\t\t\t\tconsole.log(config.name + ' error', err);\n\t\t\t\tstate();\n\t\t\t});\n\t\t};\n\n\t\tfunction onmessage(topic, message) {\n\t\t\tlet ts = new Date();\n\t\t\tfor (const sub in subscribtions) {\n\t\t\t\tvar match = mqttWildcard(topic, sub);\n\t\t\t\tif (match) {\n\t\t\t\t\tconst ids = subscribtions[sub];\n\t\t\t\t\tconst len = ids.length;\n\t\t\t\t\tfor (let i = 0; i < len; i++) {\n\t\t\t\t\t\tconst com = instance.main.find(ids[i]);\n\t\t\t\t\t\tcom && com.onmessage(topic, message, match, ts);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\tinstance.send('output', { topic, message, ts });\n\t\t}\n\n\t\tinstance.publish = function(topic, message, options) {\n\t\t\tvar isstring = typeof(message) === 'string';\n\t\t\tvar data = '';\n\t\t\tif (isstring)\n\t\t\t\tdata = message;\n\t\t\telse\n\t\t\t\ttry {\n\t\t\t\t\tdata = JSON.stringify(message);\n\t\t\t\t} catch(e) {}\n\n\t\t\tclient && client.publish(topic, data, options, function(err){\n\t\t\t\tif (err)\n\t\t\t\t\tconsole.log(config.name + ' publish error', err);\n\t\t\t});\n\t\t};\n\n\t\tinstance.subscribe = function(componentid, topic) {\n\t\t\tvar self = this;\n\t\t\tsubscribtions[topic] = subscribtions[topic] || [];\n\t\t\tif (subscribtions[topic].indexOf(componentid) > -1)\n\t\t\t\treturn;\n\n\t\t\tclient.subscribe(topic);\n\t\t\tsubscribtions[topic].push(componentid);\n\t\t};\n\n\t\tinstance.unsubscribe = function(componentid, topic) {\n\t\t\tvar self = this;\n\t\t\tvar sub = subscribtions[topic];\n\t\t\tif (sub) {\n\t\t\t\tsubscribtions[topic] = sub.remove(componentid);\n\t\t\t\tclient && client.connected && !subscribtions[topic].length && client.unsubscribe(topic);\n\t\t\t}\n\t\t};\n\n\t\tfunction notifypubsub() {\n\t\t\tvar instances = instance.main.instances().filter(i => i.module.flags && i.module.flags.includes('mqttbroker-dep') > -1 && i.config.broker === instance.id);\n\t\t\tfor (let com of instances)\n\t\t\t\tcom.configure();\n\t\t}\n\n\t\t// https://github.com/hobbyquaker/mqtt-wildcard\n\t\tfunction mqttWildcard(topic, wildcard) {\n\t\t\tif (topic === wildcard) {\n\t\t\t\treturn [];\n\t\t\t} else if (wildcard === '#') {\n\t\t\t\treturn [topic];\n\t\t\t}\n\n\t\t\tvar res = [];\n\n\t\t\tvar t = String(topic).split('/');\n\t\t\tvar w = String(wildcard).split('/');\n\n\t\t\tvar i = 0;\n\t\t\tfor (var lt = t.length; i < lt; i++) {\n\t\t\t\tif (w[i] === '+') {\n\t\t\t\t\tres.push(t[i]);\n\t\t\t\t} else if (w[i] === '#') {\n\t\t\t\t\tres.push(t.slice(i).join('/'));\n\t\t\t\t\treturn res;\n\t\t\t\t} else if (w[i] !== t[i]) {\n\t\t\t\t\treturn null;\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tif (w[i] === '#') {\n\t\t\t\ti += 1;\n\t\t\t}\n\n\t\t\treturn (i === w.length) ? res : null;\n\t\t}\n\t};\n\n</script>\n\n<readme>\n\n</readme>\n\n<style>\n\t.CLASS footer { padding: 10px; font-size: 11px; }\n\t.CLASS footer > ui-bind > div { height: 16px; }\n\t.CLASS footer b { float: right; }\n</style>\n\n<settings>\n\t<div class=\"padding\">\n\t\t<div class=\"row m\">\n\t\t\t<div class=\"col-md-4\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.host\" config=\"placeholder:test.mosquitto.org;required:1\">Hostname or IP address</ui-component>\n\t\t\t</div>\n\t\t\t<div class=\"col-md-4\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.port\" config=\"type:number;placeholder:1883;required:1;format:\">Port</ui-component>\n\t\t\t</div>\n\t\t</div>\n\t\t<div class=\"row\">\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.clientid\">Client id</ui-component>\n\t\t\t\t<div class=\"help m\">Supports variables, example: \\`client_{device-id}\\`</div>\n\t\t\t\t<ui-component name=\"checkbox\" path=\"?.secure\" class=\"m\">Secure (ssl)</ui-component>\n\t\t\t</div>\n\t\t</div>\n\t\t<div class=\"row\">\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"checkbox\" path=\"?.auth\" class=\"m\">Require Authorization</ui-component>\n\t\t\t</div>\n\t\t</div>\n\t\t<ui-bind path=\"?.auth\" config=\"show:value\" class=\"row block\">\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.username\" class=\"m\">Username</ui-component>\n\t\t\t</div>\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.password\" data-jc-config=\"type:password\" class=\"m\">Password</ui-component>\n\t\t\t</div>\n\t\t</ui-bind>\n\t\t<div class=\"row\">\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"checkbox\" path=\"?.lwt\" class=\"m\">LWT</ui-component>\n\t\t\t</div>\n\t\t</div>\n\t\t<ui-bind path=\"?.lwt\" config=\"show:value\" class=\"row block\">\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.lwttopic\">Last will topic</ui-component>\n\t\t\t\t<div class=\"help m\">Supports variables, example: \\`lwt/{device-id}\\`</div>\n\t\t\t</div>\n\t\t\t<div class=\"col-md-6\">\n\t\t\t\t<ui-component name=\"input\" path=\"?.lwtmessage\">Last will message</ui-component>\n\t\t\t\t<div class=\"help m\">Supports variables, example: \\`{device-id} is offline\\`</div>\n\t\t\t</div>\n\t\t</ui-bind>\n\t</div>\n</settings>\n\n<body>\n\t<header>\n\t\t<i class=\"ICON\"></i>NAME\n\t</header>\n\t<footer>\n\t\t<ui-bind path=\"!STATUS\" config=\"template;show\" class=\"block\">\n\t\t\t<script type=\"text/html\">\n\t\t\t\t<div><b>{{ value.name }}</b>Name</div>\n\t\t\t\t<div><b>{{ value.status }}</b>Status</div>\n\t\t\t</script>\n\t\t</ui-bind>\n\t</footer>\n</body>",
+			"switch": "<script total>\n\n\texports.id = 'switch';\n\texports.name = 'Switch';\n\texports.icon = 'ti ti-sitemap';\n\texports.group = 'Common';\n\texports.author = 'Total.js';\n\texports.version = '4';\n\texports.config = { conditions: [{ operator: 'eq', value: 'Hello world', type: 'string' }] };\n\texports.inputs = [{ id: 'input', name: 'Input' }];\n\texports.outputs = [{ id: 'output1', name: 'Output #1' }];\n\n\texports.make = function(instance, config) {\n\n\t\tvar check, getValue1;\n\t\tvar COND = [];\n\n\t\tconst get = (obj, path) => path.split(\".\").reduce((r, k) => r?.[k], obj);\n\n\t\tvar getValue2 = (path, type, data, repo) => {\n\n\t\t\tvar source;\n\t\t\tswitch (type) {\n\t\t\t\tcase 'data':\n\t\t\t\t\tsource = data;\n\t\t\t\t\tbreak;\n\t\t\t\tcase 'repo':\n\t\t\t\t\tsource = repo;\n\t\t\t\t\tbreak;\n\t\t\t\tcase 'variables':\n\t\t\t\t\tsource = instance.main.variables;\n\t\t\t\t\tbreak;\n\t\t\t\tcase 'variables2':\n\t\t\t\t\tsource = instance.main.variables2;\n\t\t\t\t\tbreak;\n\t\t\t}\n\n\t\t\tif (!path)\n\t\t\t\treturn source;\n\n\t\t\tif (typeof source === 'object' && !Array.isArray(source) && source != null)\n\t\t\t\treturn get(source, path);\n\t\t};\n\n\t\tinstance.message = function($) {\n\n\t\t\tvar data = getValue1($.data, $.repo, instance.main.variables, instance.main.variables2, get);\n\n\t\t\tvar sent = false;\n\t\t\tfor (let i = 0; i < COND.length; i++) {\n\t\t\t\ttry {\n\t\t\t\t\tlet ok = COND[i](data, $.data, $.repo);\n\t\t\t\t\tif (ok) {\n\t\t\t\t\t\t$.send('output' + (i + 1), $.data);\n\t\t\t\t\t\tsent = true;\n\t\t\t\t\t}\n\t\t\t\t} catch(e) {\n\t\t\t\t\tconsole.error('muj error', e);\n\t\t\t\t}\n\t\t\t}\n\t\t\t!sent && $.destroy();\n\t\t};\n\n\t\tinstance.configure = function() {\n\n\t\t\tif (!config.source || !config.conditions.length)\n\t\t\t\treturn;\n\n\t\t\tconst conditions = config.conditions;\n\t\t\tCOND = [];\n\n\t\t\tconditions.forEach(function eachCondition(cond, index){\n\t\t\t\tconst { operator, value, type } = cond;\n\n\t\t\t\tswitch (operator) {\n\t\t\t\t\tcase 'isnull':\n\t\t\t\t\t\tCOND[index] = (v) => v == null;\n\t\t\t\t\t\treturn;\n\t\t\t\t\tcase 'true':\n\t\t\t\t\tcase 'false':\n\t\t\t\t\t\tCOND[index] = (v) => v == operator.parseBoolean();\n\t\t\t\t\t\treturn;\n\t\t\t\t\tcase 'isempty':\n\t\t\t\t\t\tCOND[index] = (v) => typeof(v) == 'string' && v == '';\n\t\t\t\t\t\treturn;\n\t\t\t\t\tcase 'haskey':\n\t\t\t\t\t\tCOND[index] = (v) => {\n\t\t\t\t\t\t\tif (typeof v !== 'object' || Array.isArray(v) || v == null)\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\treturn v.hasOwnProperty(val);\n\t\t\t\t\t\t};\n\t\t\t\t\t\treturn;\n\t\t\t\t\tcase 'includes':\n\t\t\t\t\t\tif (type === 'number')\n\t\t\t\t\t\t\tvalue = +value;\n\t\t\t\t\t\tCOND[index] = (v) => {\n\t\t\t\t\t\t\tif (!(v instanceof Array))\n\t\t\t\t\t\t\t\treturn false;\n\t\t\t\t\t\t\treturn v => v.includes(value);\n\t\t\t\t\t\t};\n\t\t\t\t\t\treturn;\n\t\t\t\t\tcase 'expression':\n\t\t\t\t\t\tvar fn = new Function('data', 'repo', 'variables', 'variables2', value.indexOf('return') > -1 ? value : 'return ' + value + ';');\n\t\t\t\t\t\tCOND[index] = (v, data, repo) => {\n\t\t\t\t\t\t\ttry {\n\t\t\t\t\t\t\t\tvar result = fn(data, repo, instance.main.variables, instance.main.variables2);\n\t\t\t\t\t\t\t\treturn result;\n\t\t\t\t\t\t\t} catch(e) {\n\t\t\t\t\t\t\t\tconsole.log('invalid expresion', fn.toString());\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t};\n\t\t\t\t\t\treturn;\n\t\t\t\t\tcase 'indexOf':\n\t\t\t\t\t\tCOND[index] = (v) => {\n\t\t\t\t\t\t\tif (!(v instanceof Array) && typeof v !== 'string' && (type !== 'number' || type !== 'string'))\n\t\t\t\t\t\t\t\treturn false;\n\t\t\t\t\t\t\treturn v.indexOf(value) > -1;\n\t\t\t\t\t\t};\n\t\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tswitch (type) {\n\t\t\t\t\tcase 'number':\n\t\t\t\t\tcase 'string':\n\t\t\t\t\t\tCOND[index] = compile[type](operator, value);\n\t\t\t\t\t\tbreak;\n\t\t\t\t\tcase 'data':\n\t\t\t\t\tcase 'repo':\n\t\t\t\t\tcase 'variables':\n\t\t\t\t\tcase 'variables2':\n\t\t\t\t\tcase 'expression':\n\t\t\t\t\t\tvar fn, fnEx;\n\t\t\t\t\t\tif (operator === 'between' || operator === 'notbetween') {\n\t\t\t\t\t\t\tfn = (data, val) => {\n\t\t\t\t\t\t\t\tconst [ v1, v2 ] = val.split(',').trim();\n\t\t\t\t\t\t\t\tif (!v1 || isNaN(v1) || !v2 || isNaN(v2))\n\t\t\t\t\t\t\t\t\treturn false;\n\t\t\t\t\t\t\t\treturn ops[operator](+v1, data, +v2);\n\t\t\t\t\t\t\t};\n\t\t\t\t\t\t} else if (ops.list.includes(operator)) {\n\t\t\t\t\t\t\tfn = ops[operator];\n\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\tfn = NOOP;\n\t\t\t\t\t\t\tconsole.log('Invalid operator', operator);\n\t\t\t\t\t\t}\n\n\t\t\t\t\t\tif (type === 'expression')\n\t\t\t\t\t\t\tfnEx = new Function('data', 'repo', 'variables', 'variables2', value.indexOf('return') > -1 ? value : 'return ' + value + ';');\n\n\t\t\t\t\t\tCOND[index] = (val1, data, repo) => {\n\t\t\t\t\t\t\tvar val2;\n\t\t\t\t\t\t\tif (type === 'expression') {\n\t\t\t\t\t\t\t\ttry {\n\t\t\t\t\t\t\t\t\tval2 = fnEx(data, repo, instance.main.variables, instance.main.variables2);\n\t\t\t\t\t\t\t\t} catch(e) {\n\t\t\t\t\t\t\t\t\tconsole.error('Invalid function or expresion', fn.toString());\n\t\t\t\t\t\t\t\t\tconsole.error(e);\n\t\t\t\t\t\t\t\t\treturn false;\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t} else\n\t\t\t\t\t\t\t\tval2 = getValue2(value, type, data, repo, fnEx);\n\n\t\t\t\t\t\t\treturn fn(val1, val2);\n\t\t\t\t\t\t};\n\t\t\t\t\t\tbreak;\n\t\t\t\t}\n\t\t\t});\n\n\t\t\tinstance.outputs = [];\n\n\t\t\tCOND.forEach((fn, i) => {\n\t\t\t\tinstance.outputs.push({ id: 'output' + (i + 1), name: conditions[i].name || 'Output #' + (i + 1) });\n\t\t\t\tif (typeof fn !== 'function')\n\t\t\t\t\tinstance.throw('Invalid settings for output: ' + (i + 1));\n\t\t\t});\n\n\t\t\tif (config.source === 'expression')\n\t\t\t\tgetValue1 = new Function('data', 'repo', 'variables', 'variables2', 'get', 'return ' + config.path + ';');\n\t\t\telse {\n\t\t\t\ttry {\n\t\t\t\t\tvar str = 'if ({2} && (typeof {0} !== \\'object\\' || {0} == null)) return; return {1};'.format(config.source, config.path ? 'get({0}, \\'{1}\\')'.format(config.source, config.path) : config.source, config.path ? 'true' : 'false');\n\t\t\t\t\tgetValue1 = new Function('data', 'repo', 'variables', 'variables2', 'get', str);\n\t\t\t\t} catch(e) {\n\t\t\t\t\tinstance.throw(e.stack);\n\t\t\t\t\tconsole.error(str);\n\t\t\t\t};\n\t\t\t}\n\n\t\t\tinstance.save();\n\t\t};\n\n\t\tconst ops = {};\n\t\tops.gt = (v1, v2) => v1 > v2;\n\t\tops.ge = (v1, v2) => v1 >= v2;\n\t\tops.lt = (v1, v2) => v1 < v2;\n\t\tops.le = (v1, v2) => v1 <= v2;\n\t\tops.eq = (v1, v2) => v1 == v2;\n\t\tops.seq = (v1, v2) => v1 === v2;\n\t\tops.neq = (v1, v2) => v1 != v2;\n\t\tops.sneq = (v1, v2) => v1 !== v2;\n\t\tops.between = (v1, v2, v3) => v2 > v1 && v2 < v3;\n\t\tops.notbetween = (v1, v2, v3) => v2 < v1 || v2 > v3;\n\t\tops.indexOf = (v1, v2) => v1.indexOf(v2) > -1;\n\n\t\tops.list = Object.keys(ops);\n\n\t\tconst compile = {\n\t\t\tnumber_ops: [ 'gt', 'lt', 'eq', 'seq', 'neq', 'sneq', 'ge', 'le', 'between', 'notbetween', 'indexOf' ],\n\t\t\tnumber: (operator, val2) => {\n\n\t\t\t\tif (!compile.number_ops.includes(operator))\n\t\t\t\t\treturn;\n\n\t\t\t\tvar fn;\n\n\t\t\t\tif (operator === 'between' || operator === 'notbetween') {\n\t\t\t\t\tfn = (data) => {\n\t\t\t\t\t\tconst [ v1, v2 ] = val2.split(',').trim();\n\t\t\t\t\t\tif (!v1 || isNaN(v1) || !v2 || isNaN(v2))\n\t\t\t\t\t\t\treturn false;\n\t\t\t\t\t\treturn ops[operator](+v1, data, +v2);\n\t\t\t\t\t};\n\t\t\t\t} else {\n\t\t\t\t\tval2 = U.parseFloat(val2);\n\t\t\t\t\tif (isNaN(val2))\n\t\t\t\t\t\treturn NOOP;\n\t\t\t\t\tfn = (val1) => ops[operator](val1, val2);\n\t\t\t\t}\n\n\t\t\t\treturn function(val1) {\n\t\t\t\t\tif (typeof val1 !== 'number')\n\t\t\t\t\t\treturn false;\n\t\t\t\t\treturn fn(val1);\n\t\t\t\t};\n\n\t\t\t},\n\t\t\tstring: (operator, val2) => {\n\n\t\t\t\tvar fn;\n\n\t\t\t\tswitch(operator) {\n\t\t\t\t\tcase 'eq':\n\t\t\t\t\tcase 'neq':\n\t\t\t\t\tcase 'seq':\n\t\t\t\t\tcase 'sneq':\n\t\t\t\t\tcase 'indexOf':\n\t\t\t\t\t\tfn = ops[operator];\n\t\t\t\t\t\tbreak;\n\t\t\t\t\tcase 'startsWith':\n\t\t\t\t\tcase 'endsWith':\n\t\t\t\t\t\tfn = val1 => val1[operator](val2);\n\t\t\t\t\t\tbreak;\n\t\t\t\t\tcase 'regex':\n\t\t\t\t\t\tvar match = val2.match(new RegExp('^/(.*?)/([gimy]*)$'));\n\t\t\t\t\t\tif (!match || !match.length || match.length < 2)\n\t\t\t\t\t\t\treturn NOOP;\n\t\t\t\t\t\telse\n\t\t\t\t\t\t\tfn = val1 => new RegExp(match[1], match[2]).test(val1);\n\t\t\t\t\t\tbreak;\n\t\t\t\t}\n\n\t\t\t\treturn function(val1) {\n\t\t\t\t\tif (typeof val1 !== 'string')\n\t\t\t\t\t\treturn false;\n\t\t\t\t\treturn fn(val1, val2);\n\t\t\t\t};\n\t\t\t}\n\t\t};\n\n\t\tinstance.configure();\n\t};\n\n</script>\n\n<readme>\n## Source and Path\nUse the **Source** dropdown to select where to look for the value to use in the conditions check.\nSet a **Path** if the value is not the data itself. It supports dot notation: `position.longitude` or `sensor.0.value` for arrays, it does not support `sensor[0].value`.\n**Expression** supports javascript syntax. Should return a value which will be used in condition check as `data`. Available variables: data, repo, variables, variables2\n**Expressions example:**\n```js\ndata.value - variables.offset\n```\n\n## Conditions\nEach of the **Conditions** corresponds to an output in the exact same order. First condition -> First output.\n\n**Operator**\nNot all operators work on all data types. For example it is not possible to use `&gt;` or `&lt;` for strings, etc.\n*index of* only works for data of type array or string.\n**Expression operator**\nIn this case the **type** field is ignored and the expression in the **value** field must return `true` or `false`. Available variables: data, repo, variables, variables2.\nExpressions operator example:\n```js\ndata.value > variables.threshold;\n```\nor with a conditions\n```js\nif (typeof data.value !== 'number') return false; else return data.value > parseInt(variables.threshold);\n```\n\n**Expression type**\nThe expression in the **value** field must return a value which will be used in the given operation. Available variables: data, repo, variables, variables2.\nExpressions example:\n```js\ndata.value - variables.offset\n```\n\n**Between operator** only works with datatype number and the value must be two comma separated values. e.g.: `2,4` so the condition becomes `val &gt; 2 && val &lt; 4`\n</readme>\n\n<settings>\n\t<div class=\"padding\">\n\t\t\t<label class=\"ui-input-label\">Source + Path to the value</label>\n\t\t<div class=\"switch-input-group wide m\">\n\t\t\t<ui-component name=\"input\" path=\"?.source\" config=\"dirsource:REPO.switch_datasources\" default=\"'data'\"></ui-component>\n\t\t\t<ui-component name=\"input\" path=\"?.path\"></ui-component>\n\t\t</div>\n\t\t<section class=\"switch-conditions m\">\n\t\t\t<label class=\"ui-input-label\">Switch conditions</label>\n\t\t\t<div class=\"switch-thead\">\n\t\t\t\t<div class=\"row\">\n\t\t\t\t\t<div class=\"col-md-1\">#</div>\n\t\t\t\t\t<div class=\"col-md-2\">Operator</div>\n\t\t\t\t\t<div class=\"col-md-6\">Type + Value</div>\n\t\t\t\t\t<div class=\"col-md-2\">Output name</div>\n\t\t\t\t\t<div class=\"col-md-1\">Action</div>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t\t<ui-bind path=\"?.conditions\" config=\"template:.switch-condition -> data-index\" clas=\"block\">\n\t\t\t\t<ui-component name=\"movable\" path=\"?.conditions\" config=\"selector:.dragme;exec:FUNC.switch_condition_dragged\">\n\t\t\t\t\t<script type=\"text/html\">\n\t\t\t\t\t\t{{ foreach con in value }}\n\t\t\t\t\t\t<div class=\"switch-condition dragme\" data-index=\"{{ $index }}\" draggable=\"true\">\n\t\t\t\t\t\t\t<div class=\"row\">\n\t\t\t\t\t\t\t\t<div class=\"col-md-1\">\n\t\t\t\t\t\t\t\t\t{{ ($index + 1) }}.\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<div class=\"col-md-2\">\n\t\t\t\t\t\t\t\t\t<ui-component name=\"input\" path=\"?.conditions[{{ $index }}].operator\" config=\"dirsource:REPO.switch_operators\"></ui-component>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<div class=\"col-md-6\">\n\t\t\t\t\t\t\t\t\t<ui-bind path=\"?.conditions[{{ $index }}].operator\" config=\"hide:value == 'true' || value == 'false' || value == 'isnull' || value == 'isempty';.switch-input-group:value!=='expression'\" class=\"block\">\n\t\t\t\t\t\t\t\t\t\t<ui-bind path=\"?.conditions[{{ $index }}].operator\" config=\"hide:value==='expression'\">\n\t\t\t\t\t\t\t\t\t\t\t<ui-component name=\"input\" path=\"?.conditions[{{ $index }}].type\" config=\"dirsource:REPO.switch_valuetypes\"></ui-component>\n\t\t\t\t\t\t\t\t\t\t</ui-bind>\n\t\t\t\t\t\t\t\t\t\t<ui-component name=\"input\" path=\"?.conditions[{{ $index }}].value\" config=\"placeholder:value\"></ui-component>\n\t\t\t\t\t\t\t\t\t</ui-bind>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<div class=\"col-md-2\">\n\t\t\t\t\t\t\t\t\t<ui-component name=\"input\" path=\"?.conditions[{{ $index }}].name\"></ui-component>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<div class=\"col-md-1\">\n\t\t\t\t\t\t\t\t\t<i class=\"ti ti-trash red exec\" data-exec=\"FUNC.switch_remove_condition\"></i>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\t\t\t\t\t\t{{ end }}\n\t\t\t\t\t</script>\n\t\t\t\t</ui-component>\n\t\t\t</ui-bind>\n\t\t\t<div class=\"help m\">Each condition corresponds to an output index. First condition --> First output, etc.</div>\n\t\t\t<button class=\"button-add exec\" data-exec=\"FUNC.switch_add_condition\">ADD</button>\n\t\t</section>\n\t\t<button class=\"button exec\" style=\"width: 200px;\" data-exec=\"FUNC.switch_readme\"><i class=\"ti ti-info-circle blue\"></i>Show configuration info</button>\n\t</div>\n</settings>\n\n<script>\n\n\tFUNC.switch_readme = function() {\n\t\tEXEC('flow/readme', flow.info.selected.component);\n\t};\n\n\tFUNC.switch_add_condition = function(el) {\n\t\tvar scope = el.scope();\n\t\tPUSH(scope.path + '.conditions', { operator: '==', type: 'string', value: '' });\n\t};\n\n\tFUNC.switch_remove_condition = function(el) {\n\t\tvar path = el.scope().path;\n\t\tvar config = GET(path);\n\t\tvar index = el.closest('.switch-condition').attrd('index');\n\t\tconfig.conditions.splice(index, 1);\n\t\tSET(path, config);\n\t\tconsole.log(config);\n\t};\n\n\tFUNC.switch_condition_dragged = function(list, dragged, target) {\n\t\tdragged = $(dragged);\n\t\tvar dragged_index = dragged.attrd('index');\n\t\tvar target_index = $(target).attrd('index');\n\t\tvar path = dragged.scope().path;\n\t\tvar config = GET(path);\n\t\tvar dragged_item = config.conditions.splice(dragged_index, 1)[0];\n\t\tconfig.conditions.splice(target_index, 0, dragged_item);\n\t\tSET(path, config);\n\t};\n\n\tFUNC.switch_tooltip = function(el) {\n\t\tvar opt = {};\n\t\topt.element = el;\n\t\tvar id = el.attrd('id');\n\t\topt.html = REPO.switch_tooltips[id];\n\n\t\tSETTER('tooltip', 'show', opt);\n\t};\n\n\tREPO.switch_datasources = 'data|Message data,repo|Message repository,variables|Local variables,variables2|Global variables,expression|Expression'.split(',').map(d => { const [ id, name ] = d.split('|'); return { id, name }; });\n\tREPO.switch_valuetypes = 'number|Number,string|String,data|Message data,repo|Message repository,variables|Local variables,variables2|Global variables,expression|Expression'.split(',').map(d => { const [ id, name ] = d.split('|'); return { id, name }; });\n\tREPO.switch_operators = 'gt|>,lt|<,eq|==,seq|===,sneq|!==,ge|>=,le|<=,between|between,isnull|is null,isempty|is empty,indexOf|index of,startsWith|starts with,endsWith|ends with,regex|regular expression,true|is true,false|is false,includes|includes,haskey|has key,expression|Expression'.split(',').map(d => { const [ id, name ] = d.split('|'); return { id, name }; });\n\n</script>\n\n<style>\n\t.CLASS footer { padding: 10px; font-size: 12px; }\n\n\t.button-add { height: 24px; font-size: 12px; border: 1px solid #E0E0E0; border-radius: var(--radius); color: #000; background-color: #f0f0f0; margin: 0; padding: 2px 10px; }\n\t.button-add:hover { background-color: #F8F8F8; }\n\t.button-add:active { background-color: #E0E0E0; }\n\n\t.ui-dark .button-add { border-color: #404040; color: #FFF; background-color: #202020; }\n\t.ui-dark .button-add:hover { background-color: #303030; }\n\t.ui-dark .button-add:active { background-color: #404040; }\n\n\t.switch-input-group { clear: both; height: 36px; }\n\t.switch-input-group > ui-component:first-child .ui-input-control { border-right: none; border-bottom-right-radius: 0; border-top-right-radius: 0; width: 120px; float: left; background-color: #f0f0f0; }\n\t.switch-input-group > ui-component:last-child .ui-input-control { border-bottom-left-radius: 0; border-top-left-radius: 0; float: left; width: calc(100% - 120px); }\n\t.switch-input-group.wide > ui-component:first-child .ui-input-control { width: 200px; }\n\t.switch-input-group.wide > ui-component:last-child .ui-input-control { width: calc(100% - 200px); }\n\t.switch-conditions { border: 1px solid #e0e0e0; padding: 8px; border-radius: 3px; }\n\t.switch-condition { border: 1px solid #e0e0e0; border-radius: 3px; padding: 8px; margin-bottom:4px; }\n\t.switch-condition > .row > .col-md-1 { height: 36px; line-height: 36px; }\n\t.switch-help { background-color: #e7e7ff; border-radius: 3px; padding: 4px; }\n\t.switch-thead { padding: 8px; margin-bottom:4px; }\n\n\t.ui-dark .switch-conditions { border-color: #404040; }\n\t.ui-dark .switch-condition { border-color: #404040; }\n\t.ui-dark .switch-help { border-color: #404040; }\n\n</style>\n\n<body>\n\t<header>\n\t\t<i class=\"ICON\"></i>NAME\n\t</header>\n</body>",
+			"print": "<script total>\n\n\texports.id = 'print';\n\texports.name = 'Print';\n\texports.group = 'Common';\n\texports.version = '5';\n\texports.icon = 'ti ti-print';\n\texports.author = 'Total.js';\n\texports.config = { repo: false, data: true };\n\texports.inputs = [{ id: 'input', name: 'Input' }];\n\n\texports.make = function(instance, config) {\n\n\t\tfunction serializer(key, value) {\n\t\t\treturn value && value.type === 'Buffer' && value.data ? ('<Buffer ' + value.data.splice(0, 10).map(n => n.toString(16).padLeft(2, '0')).join('') + '...') : value;\n\t\t}\n\n\t\tinstance.message = function($) {\n\n\t\t\tvar data = $.data;\n\n\t\t\tif (config.data !== false) {\n\t\t\t\tif (data instanceof Buffer)\n\t\t\t\t\tdata = '<Buffer ' + data.toString('hex').substring(0, 10) + '...';\n\t\t\t}\n\n\t\t\tvar count = 0;\n\n\t\t\tfor (var key in config) {\n\t\t\t\tif (config[key])\n\t\t\t\t\tcount++;\n\t\t\t}\n\n\t\t\tvar output = count > 1 ? {} : null;\n\n\t\t\tif (config.repo) {\n\t\t\t\tif (output)\n\t\t\t\t\toutput.repo = $.repo;\n\t\t\t\telse\n\t\t\t\t\toutput = $.repository;\n\t\t\t}\n\n\t\t\tif (config.data) {\n\t\t\t\tif (output)\n\t\t\t\t\toutput.data = $.data;\n\t\t\t\telse\n\t\t\t\t\toutput = $.data;\n\t\t\t}\n\n\t\t\tif (output) {\n\t\t\t\toutput = JSON.stringify(output, serializer);\n\t\t\t\tinstance.status(output, 200);\n\t\t\t}\n\n\t\t\t$.destroy();\n\t\t};\n\n\t\tinstance.trigger = function() {\n\t\t\tinstance.status('');\n\t\t};\n\n\t};\n\n</script>\n\n<style>\n\t.CLASS footer > ui-bind { margin: 10px; }\n\t.CLASS pre { font-size: 10px; margin: 0; padding: 5px; background-color: #F0F0F0; border-radius: var(--radius); }\n\t.CLASS .json { white-space: pre; }\n\t.CLASS .noscrollbar { max-height: 250px; }\n\t.CLASS .readme { position: absolute; position: absolute; font-size: 11px; right: 5px; margin-top: -5px; cursor: pointer; }\n\t.ui-dark .CLASS pre { background-color: #404040; tab-size: 2; }\n</style>\n\n<readme>\nThe component prints incoming data in a JSON format.\n</readme>\n\n<settings>\n\t<div class=\"padding\">\n\t\t<ui-component name=\"input\" path=\"?.repo\" config=\"type:checkbox\">Shows repository</ui-component>\n\t\t<ui-component name=\"input\" path=\"?.data\" config=\"type:checkbox\">Shows data</ui-component>\n\t</div>\n</settings>\n\n<body>\n\t<header>\n\t\t<button class=\"exec button\" data-exec=\"FUNC.trigger\">Clear</button>\n\t\t<i class=\"ICON\"></i>NAME\n\t</header>\n\t<footer>\n\t\t<ui-bind path=\"!STATUS\" config=\"html pre:Thelpers.jsonformat(JSON.stringify(JSON.parse(value), null, '\\t'));show:value && value.length > 0\" class=\"hidden selectable block\">\n\t\t\t<span class=\"readme\" title=\"Open in new window\"><i class=\"ti ti-window\"></i></span>\n\t\t\t<div class=\"noscrollbar mt5\">\n\t\t\t\t<pre class=\"json\"></pre>\n\t\t\t</div>\n\t\t</ui-bind>\n\t</footer>\n</body>\n\n<script>\n\tTOUCH(function(exports, reinit) {\n\n\t\tif (reinit)\n\t\t\treturn;\n\n\t\tvar laststatus;\n\n\t\texports.status = function(status, isinit) {\n\t\t\tlaststatus = status;\n\t\t};\n\n\t\texports.element.on('click', '.readme', function() {\n\t\t\tFUNC.readme('Debug', '```json\\n' + JSON.stringify(JSON.parse(laststatus), null, '  ') + '\\n```');\n\t\t});\n\n\t});\n</script>"
+		},
+		"design": {
+			"im28wv98l": {
+				"id": "im28wv98l",
+				"config": {
+					"broker": "im28wx4g2",
+					"topic": "codeIT_001/site2/area2/#"
+				},
+				"x": 240,
+				"y": 285,
+				"component": "mqttsubscribe",
+				"connections": {
+					"message": [
+						{
+							"id": "im28wz1f0",
+							"index": "input"
+						}
+					]
+				}
+			},
+			"im28wx4g2": {
+				"id": "im28wx4g2",
+				"config": {
+					"host": "localhost",
+					"port": 1883,
+					"secure": false,
+					"name": "[MQTT] localhost:1883"
+				},
+				"x": 281,
+				"y": 130,
+				"component": "mqttbroker",
+				"connections": {}
+			},
+			"im28wz1f0": {
+				"id": "im28wz1f0",
+				"config": {
+					"conditions": [
+						{
+							"operator": "regex",
+							"value": "/printer_1/",
+							"type": "string",
+							"name": "printer 1"
+						},
+						{
+							"operator": "regex",
+							"type": "string",
+							"value": "/printer_2/",
+							"name": "printer 2"
+						},
+						{
+							"operator": "regex",
+							"type": "string",
+							"value": "/printer_3/",
+							"name": "printer 3"
+						},
+						{
+							"operator": "regex",
+							"type": "string",
+							"value": "/printer_4/",
+							"name": "printer 4"
+						}
+					],
+					"source": "data",
+					"path": "topic"
+				},
+				"x": 576,
+				"y": 283,
+				"component": "switch",
+				"connections": {
+					"output1": [
+						{
+							"id": "im28x7i6z",
+							"index": "input"
+						}
+					],
+					"output2": [
+						{
+							"id": "im28x7tqj",
+							"index": "input"
+						}
+					],
+					"output3": [
+						{
+							"id": "im28x7v25",
+							"index": "input"
+						}
+					],
+					"output4": [
+						{
+							"id": "im28x7vxe",
+							"index": "input"
+						}
+					]
+				},
+				"outputs": [
+					{
+						"id": "output1",
+						"name": "printer 1"
+					},
+					{
+						"id": "output2",
+						"name": "printer 2"
+					},
+					{
+						"id": "output3",
+						"name": "printer 3"
+					},
+					{
+						"id": "output4",
+						"name": "printer 4"
+					}
+				]
+			},
+			"im28x7i6z": {
+				"id": "im28x7i6z",
+				"config": {
+					"repo": false,
+					"data": true
+				},
+				"x": 1238,
+				"y": 120,
+				"component": "print",
+				"connections": {}
+			},
+			"im28x7tqj": {
+				"id": "im28x7tqj",
+				"config": {
+					"repo": false,
+					"data": true
+				},
+				"x": 1238,
+				"y": 358,
+				"component": "print",
+				"connections": {}
+			},
+			"im28x7v25": {
+				"id": "im28x7v25",
+				"config": {
+					"repo": false,
+					"data": true
+				},
+				"x": 962,
+				"y": 514,
+				"component": "print",
+				"connections": {}
+			},
+			"im28x7vxe": {
+				"id": "im28x7vxe",
+				"config": {
+					"repo": false,
+					"data": true
+				},
+				"x": 614,
+				"y": 602,
+				"component": "print",
+				"connections": {}
+			},
+			"groups": [
+				{
+					"id": "gm28wvdae",
+					"x": 165,
+					"y": 116,
+					"width": 1347,
+					"height": 785,
+					"name": "Group"
+				}
+			]
+		},
+		"sources": {},
+		"size": 34175
+	}
+}

@@ -754,8 +754,8 @@
 			SETTER('approve/show', '@(Are you sure you want to save and deploy Flow?)', '"ti ti-check-circle" @(Continue)', function() {
 				if (BLOCKED('save', 2000))
 					return;
-
-				SETTER('websocket/send', { TYPE: 'deploy'});
+				
+				//SETTER('websocket/send', { TYPE: 'deploy'});
 			})
 		};
 
@@ -807,9 +807,20 @@
 					output[item.id] = item;
 				}
 
+				const hasRancherServer = Object.values(output).some(
+					(item) => item.component === "rancher"
+				);
+				if (!hasRancherServer) {
+					SETTER('notify/warning', '@(You must setup Rancher server)');
+					return;
+				}
+
 				$('.isnewbie').rclass('isnewbie');
 				SET('?.changed', false);
 				SETTER('websocket/send', { TYPE: 'save', data: output });
+				var meta = flow.head;
+				meta.isDeploy = true;
+				SETTER('websocket/send', { TYPE: 'meta', data: meta });
 				Designer.CMD('flow.reset');
 			});
 

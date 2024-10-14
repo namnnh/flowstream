@@ -143,6 +143,7 @@ NEWACTION("Streams/save", {
         item.color = model.color;
         item.memory = model.memory;
         item.cloning = model.cloning;
+        item.isDeploy = model.isDeploy;
         item.readme = model.readme;
         item.proxypath = model.proxypath;
 

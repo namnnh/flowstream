@@ -95,15 +95,11 @@
 		});
 
 		$(W).on('message', function(e) {
-			console.log('aaaaaaaaaaaa');
 			var data = e.originalEvent.data;
 			if (data) {
 				var msg = PARSE(data);
 				if (msg && msg.TYPE) {
 					switch (msg.TYPE) {
-						case 'testCase':
-							console.log('AAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
-							break;
 						case 'shortcut':
 							SETTER('shortcuts/exec', msg.key);
 							break;

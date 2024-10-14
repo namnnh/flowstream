@@ -7,7 +7,9 @@
     "url": "https://github.com/totaljs/flow"
   },
   "dependencies": {
+    "axios": "^1.7.7",
     "mqtt": "^5.10.1",
+    "mysql2": "^3.11.3",
     "querybuilderpg": "^1.0.24",
     "total5": "latest"
   },
