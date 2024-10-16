@@ -18,7 +18,7 @@
 						<script type="text/html">
 								<div class="flows">
 									{{ foreach i in value }}
-										<figure data-id="{{ i.id }}">
+										<figure class="exec" data-id="{{ i.id }}" data-exec="common/open">
 											<section{{ if i.color }} style="border-color:{{ i.color }}"{{ fi }}>
 												<div class="options exec" data-exec="common/contextmenu" data-prevent="true"><i class="ti ti-ellipsis-v"></i></div>
 												<div class="icon"{{ if i.color }} style="color:{{ i.color }}"{{ fi }}><i class="{{ i.icon }}"></i></div>

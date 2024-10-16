@@ -110,83 +110,21 @@
 			exports.menu = function(el) {
 				var id = ATTRD(el);
 				switch (id) {
-
-					case 'flows':
-						exports.set('page', 'flows');
-						break;
-
-					case 'update':
-						EXEC('-approve/show', '<i class="ti ti-warning red"></i><b>@(WARNING):</b> @(Are you sure you want to update bundle of the Total.js Flow? It is a hazardous step.)', '"ti ti-sync" @(Upload bundle)', function() {
-							var opt = {};
-							opt.multiple = false;
-							opt.url = '/fapi/update/' + model.openplatform;
-							opt.callback = function(response, err) {
-								if (err) {
-									EXEC('-message/warning', err);
-								} else {
-									EXEC('-loading/show');
-									setTimeout(() => location.reload(), 5000);
-								}
-							};
-							EXEC('-fileuploader/upload', opt);
-						});
-						break;
-
-					case 'logout':
-						AJAX('GET @{#}/fapi/logout/ @showloading', () => location.href = '/');
-						break;
-
-					case 'import':
-						FUNC.import(function(data, hide) {
-							data = data.trim();
-							var obj = PARSE(data);
-							if (obj && obj.components && obj.id && obj.name && obj.design) {
-								data = STRINGIFY(obj);
-								exports.tapi('clipboard_import @showloading ERROR', { data: data }, function(response) {
-									exports.refresh();
-									setTimeout(function() {
-										exports.tapi('streams_read/{0} ERROR'.format(response.value), function(response) {
-											SET('streamform @reset @hideloading', response);
-											SET('common.form', 'streamform');
-										});
-									}, 1000);
-								});
-								hide();
-							} else
-								EXEC('-message/warning', '@(Invalid data)');
-						});
-						break;
-					case 'opensource':
-						exports.set('form', 'templatesform');
-						break;
 					case 'create':
 					case 'settings':
 					case 'password':
 					case 'variables':
 						exports[id]();
 						break;
-					case 'cdnclear':
-						EXEC('-approve/show', '@(Are you sure you want to clear the CDN cache for UI components?)', ':ti ti-recycle: @(Clear)', () => exports.tapi('cdn_clear ERROR', AEXEC('-message/success', '@(The CDN cache has been cleared successfully)')));
-						break;
-					case 'templates':
-						SET('common.form', 'templatesform');
-						break;
-					case 'search':
-						exports.search();
-						break;
-					default:
-
-						if (id.substring(0, 6) === 'plugin') {
-							EXEC('-parts/focus', 'main');
-							exports.set('page', id);
-						}
-
-						break;
 				}
 			};
 			exports.create = function() {
 				SET('companyform @default', {});
 				SET('common.form', 'companyform');
+			};
+			exports.open = function(el) {
+				var id = ATTRD(el);
+				window.location.href  = "/companies/" + id + "/sites";
 			};
 			exports.refresh = function() {
 				exports.tapi('companies ERROR', function(response) {

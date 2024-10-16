@@ -12,7 +12,9 @@ exports.install = function () {
   ROUTE("+API     ?    -streams                          --> Streams/query");
   ROUTE("+API     ?    -streams_read/{id}                --> Streams/read");
   ROUTE("+API     ?    +streams_save                     --> Streams/save");
-  ROUTE("+API     ?    +streams_deploy                   --> Streams/deploy");
+  ROUTE(
+    "+API     ?    +streams_deploy/{id}                   --> Streams/deploy"
+  );
   ROUTE("+API     ?    -streams_remove/{id}              --> Streams/remove");
   ROUTE("+API     ?    -streams_stats                    --> Streams/stats");
   ROUTE("+API     ?    -streams_pause/{id}               --> Streams/pause");

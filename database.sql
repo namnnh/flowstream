@@ -33,3 +33,15 @@ CREATE TABLE "op"."site" (
         REFERENCES "op"."company"("id")
         ON DELETE CASCADE
 );
+CREATE TABLE "op"."deployment_services" (
+    "id" text NOT NULL,
+    "area_id" text NOT NULL,
+    "component_id" text NOT NULL,
+    "deployment_id" text NOT NULL,
+    "deployment_status" text,
+    "deployment_links" jsonb,
+    "deployment_actions" jsonb,
+    "deployment_type" text,
+    "dtupdated" timestamp DEFAULT now(),
+    PRIMARY KEY ("id")
+);

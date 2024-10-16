@@ -13,10 +13,7 @@
 		</div>
 
 		<div is="is-div" path="?.changed" config=".highlight button" class="apply-button">
-			<button class="exec apply" data-exec="?/submit"><i class="ti ti-play"></i><span>@(APPLY)</span></button>
-		</div>
-		<div is="is-div" path="?.changed" config=".highlight-deploy button" class="apply-button">
-			<button class="exec deploy" data-exec="?/deploy"><i class="ti ti-rocket"></i><span>@(Deploy)</span></button>
+			<button class="exec apply" data-exec="?/submit"><i class="ti ti-play"></i><span>@(Save)</span></button>
 		</div>
 
 		<div>
@@ -749,15 +746,6 @@
 					return a;
 			}
 		};
-		exports.deploy = function() {
-
-			SETTER('approve/show', '@(Are you sure you want to save and deploy Flow?)', '"ti ti-check-circle" @(Continue)', function() {
-				if (BLOCKED('save', 2000))
-					return;
-				
-				//SETTER('websocket/send', { TYPE: 'deploy'});
-			})
-		};
 
 		exports.submit = function() {
 
@@ -818,9 +806,6 @@
 				$('.isnewbie').rclass('isnewbie');
 				SET('?.changed', false);
 				SETTER('websocket/send', { TYPE: 'save', data: output });
-				var meta = flow.head;
-				meta.isDeploy = true;
-				SETTER('websocket/send', { TYPE: 'meta', data: meta });
 				Designer.CMD('flow.reset');
 			});
 

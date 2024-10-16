@@ -189,6 +189,10 @@
 				SET('siteform @default', common.companyData);
 				SET('common.form', 'siteform');
 			};
+			exports.open = function(el) {
+				var id = ATTRD(el);
+				window.location.href  = "/sites/" + id + "/areas";
+			};
 			exports.refresh = function() {
 				exports.tapi("sites?company_id=" + common.companyData.id + " ERROR", function(response) {
 					response.items.forEach(function(item) {
