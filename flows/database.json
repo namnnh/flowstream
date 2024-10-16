@@ -48,10 +48,10 @@
 			"im28wx4g2": {
 				"id": "im28wx4g2",
 				"config": {
-					"host": "localhost",
-					"port": 1883,
+					"host": "mqtt://mqtt-mqtt",
+					"port": "3010",
 					"secure": false,
-					"name": "[MQTT] localhost:1883"
+					"name": "[MQTT] mqtt://mqtt-mqtt:3010"
 				},
 				"x": 281,
 				"y": 130,

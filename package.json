@@ -11,7 +11,7 @@
     "mqtt": "^5.10.1",
     "mysql2": "^3.11.3",
     "querybuilderpg": "^1.0.24",
-    "total5": "latest"
+    "total5": "file:./totaljs-custom/framework5"
   },
   "scripts": {
     "start": "node index.js 8000"

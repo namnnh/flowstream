@@ -4,6 +4,9 @@ const https = require("https");
 const DB_FILE = "database.json";
 const DIRECTORY = CONF.directory || PATH.root("flowstream");
 
+const DB_FILE_FLOW = "database.json";
+const DIRECTORY_FLOW = CONF.directory || PATH.root("flows");
+
 CONF.$customtitles = true;
 
 PATH.mkdir(DIRECTORY);
@@ -234,9 +237,135 @@ allow_anonymous true
     .catch((error) => {
       console.error("Error when calling Rancher API to deploy MQTT config");
     });
-  const brokerUrl = `mqtt://${brokerName}-mqtt:${port}`;
 
-  return brokerUrl;
+  return { brokerName, brokerPort: port };
+}
+
+function deployFlowStream(
+  axiosInstance,
+  flowStreamComponent,
+  brokerName,
+  brokerPort
+) {
+  const { subscribe_topic, port, name } = flowStreamComponent.config;
+  let nameFormat = name
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .trim();
+  let nameFlow =
+    nameFormat +
+    "-" +
+    F.TUtils.random_string(10)
+      .toLowerCase()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .trim();
+
+  const filePath = PATH.join(DIRECTORY_FLOW, DB_FILE_FLOW);
+  PATH.fs.readFile(filePath, "utf8", (err, data) => {
+    let jsonData = JSON.parse(data);
+    const firstKey = Object.keys(jsonData).find((key) => key !== "variables");
+    const design = jsonData[firstKey].design;
+    let mqttSubscribeObject = null;
+    let mqttBrokerObject = null;
+
+    for (let key in design) {
+      if (design[key].component === "mqttsubscribe") {
+        mqttSubscribeObject = design[key];
+        break;
+      }
+    }
+    for (let key in design) {
+      if (design[key].component === "mqttbroker") {
+        mqttBrokerObject = design[key];
+        break;
+      }
+    }
+
+    if (mqttSubscribeObject) {
+      mqttSubscribeObject.config.topic = subscribe_topic;
+    }
+    if (mqttBrokerObject) {
+      mqttBrokerObject.config.host = `${brokerName}-mqtt`;
+      mqttBrokerObject.config.port = brokerPort;
+      mqttBrokerObject.config.name = `[MQTT] ${mqttBrokerObject.config.host}:${brokerPort}`;
+    }
+    const configPayload = {
+      type: "configMap",
+      name: `${nameFormat}-config`,
+      namespaceId: "main-app",
+      data: {
+        "database.json": JSON.stringify(jsonData, skip, "\t"),
+      },
+    };
+    axiosInstance
+      .post("/configmaps", configPayload)
+      .then((res) => {
+        if (res.data) {
+          const workloadPayload = {
+            name: nameFlow,
+            namespaceId: "main-app",
+            containers: [
+              {
+                name: nameFlow,
+                image: "totalplatform/flow",
+                restart: "no",
+                container_name: nameFlow,
+                replicas: 1,
+                selector: {
+                  matchLabels: {
+                    app: nameFlow,
+                  },
+                },
+                ports: [
+                  {
+                    name: `flow-port`,
+                    containerPort: port,
+                  },
+                ],
+                volumeMounts: [
+                  {
+                    mountPath: "/www/flowstream/database.json",
+                    name: `${nameFormat}-config`,
+                    readOnly: false,
+                    subPath: "database.json",
+                  },
+                ],
+                imagePullPolicy: "Always",
+              },
+            ],
+            volumes: [
+              {
+                configMap: {
+                  name: `${nameFormat}-config`,
+                },
+                name: `${nameFormat}-config`,
+              },
+            ],
+            serviceAccountName: "default",
+          };
+          axiosInstance
+            .post("/workloads", workloadPayload)
+            .then((res) => {
+              console.log(
+                "Success calling Rancher API to deploy MQTT FlowStream workloads"
+              );
+            })
+            .catch((error) => {
+              console.error(
+                "Error when calling Rancher API to deploy MQTT FlowStream workloads",
+                error
+              );
+            });
+        }
+      })
+      .catch((error) => {
+        console.error(
+          "Error when calling Rancher API to deploy FlowStream configmaps",
+          error
+        );
+      });
+  });
 }
 
 async function deployServices(data) {
@@ -248,15 +377,26 @@ async function deployServices(data) {
     const mqttComponents = findComponentsByName(data, "mqtt_broker_deploy");
     if (mqttComponents.length > 0) {
       let mqttComponent = mqttComponents[0];
-      let brokerUrl = await deployMqttComponent(axiosInstance, mqttComponent);
-      if (brokerUrl) {
+      let { brokerName, brokerPort } = await deployMqttComponent(
+        axiosInstance,
+        mqttComponent
+      );
+      if (brokerName && brokerPort) {
+        const brokerUrl = `mqtt://${brokerName}-mqtt:${brokerPort}`;
         const printerComponents = findComponentsByName(data, "printer_service");
         if (printerComponents.length > 0) {
-          let printerComponent = printerComponents[0];
-          await deployPrinterComponent(
+          for (const p of printerComponents) {
+            await deployPrinterComponent(axiosInstance, p, brokerUrl);
+          }
+        }
+        const flowstreamComponents = findComponentsByName(data, "flowstream");
+        if (flowstreamComponents.length > 0) {
+          let flowstreamComponent = flowstreamComponents[0];
+          await deployFlowStream(
             axiosInstance,
-            printerComponent,
-            brokerUrl
+            flowstreamComponent,
+            brokerName,
+            brokerPort
           );
         }
       }
@@ -264,7 +404,7 @@ async function deployServices(data) {
   }
 }
 
-Flow.on("save", function () {
+Flow.on("save", async function ($) {
   for (var key in Flow.db) {
     if (key !== "variables") {
       var flow = Flow.db[key];
